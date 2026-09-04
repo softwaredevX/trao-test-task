@@ -12,8 +12,8 @@ const questionSchema = new mongoose.Schema({
   requirement_ids: [{ type: String }],
   category: { type: String, enum: ['technical', 'behavioural', 'system-design', 'company-fit'], default: 'technical' },
   prompt: { type: String, required: true },
-  answer_outline: { type: String, default: '' },
-  difficulty: { type: Number, min: 1, max: 3, default: 2 },
+  answer_outline: { type: mongoose.Schema.Types.Mixed, default: '' },
+  difficulty: { type: Number, min: 1, max: 5, default: 2 },
   status: { type: String, enum: ['generated', 'edited', 'pinned'], default: 'generated' },
   is_edited: { type: Boolean, default: false }
 }, { _id: false });
@@ -23,7 +23,8 @@ const flashcardSchema = new mongoose.Schema({
   front: { type: String, required: true },
   back: { type: String, required: true },
   requirement_ids: [{ type: String }],
-  status: { type: String, enum: ['generated', 'edited', 'pinned'], default: 'generated' }
+  status: { type: String, enum: ['generated', 'edited', 'pinned'], default: 'generated' },
+  is_edited: { type: Boolean, default: false }
 }, { _id: false });
 
 const dayScheduleSchema = new mongoose.Schema({

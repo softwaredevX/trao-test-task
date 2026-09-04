@@ -108,7 +108,8 @@ export function QuestionBankWorkspace({
       category: activeCategory,
       difficulty: 3,
       requirement_ids: requirements.length > 0 ? [requirements[0].id] : [],
-      status: 'edited'
+      status: 'edited',
+      is_edited: true
     };
     setEditingQuestion(newQuestion);
   };

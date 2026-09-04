@@ -86,7 +86,8 @@ export default function KitBuilderPage() {
     try {
       const res = await api.post(`/kits/${params.id}/regenerate`, {
         targetSection: 'category',
-        category
+        category,
+        questions: kit.questions
       });
       if (res.data.status === 'ok') {
         setKit(res.data.kit);
@@ -99,7 +100,8 @@ export default function KitBuilderPage() {
   const handleRegenerateFlashcards = async () => {
     try {
       const res = await api.post(`/kits/${params.id}/regenerate`, {
-        targetSection: 'flashcards'
+        targetSection: 'flashcards',
+        flashcards: kit.flashcards
       });
       if (res.data.status === 'ok') {
         setKit(res.data.kit);
