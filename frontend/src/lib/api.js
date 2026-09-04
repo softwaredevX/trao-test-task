@@ -9,3 +9,13 @@ export const api = axios.create({
     'Content-Type': 'application/json'
   }
 });
+
+// Attach token from localStorage as Bearer header on every request
+// (fallback for cross-site environments where cookies may be blocked)
+api.interceptors.request.use((config) => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  if (token) {
+    config.headers['Authorization'] = `Bearer ${token}`;
+  }
+  return config;
+});

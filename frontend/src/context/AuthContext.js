@@ -30,6 +30,7 @@ export function AuthProvider({ children }) {
     const res = await api.post('/auth/login', { email, password });
     if (res.data.status === 'ok') {
       setUser(res.data.user);
+      if (res.data.token) localStorage.setItem('token', res.data.token);
     }
     return res.data;
   };
@@ -38,6 +39,7 @@ export function AuthProvider({ children }) {
     const res = await api.post('/auth/register', { name, email, password });
     if (res.data.status === 'ok') {
       setUser(res.data.user);
+      if (res.data.token) localStorage.setItem('token', res.data.token);
     }
     return res.data;
   };
@@ -49,6 +51,7 @@ export function AuthProvider({ children }) {
       // Ignore errors
     } finally {
       setUser(null);
+      localStorage.removeItem('token');
     }
   };
 
