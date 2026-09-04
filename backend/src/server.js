@@ -5,9 +5,11 @@ import { logger } from './utils/logger.js';
 
 const startServer = async () => {
   await connectDB();
-  
-  app.listen(env.PORT, () => {
-    logger.info(`Server running on http://localhost:${env.PORT} in ${env.NODE_ENV} mode`);
+
+  app.listen(env.PORT, '0.0.0.0', () => {
+    logger.info(
+      `Server running on port ${env.PORT} in ${env.NODE_ENV} mode`
+    );
   });
 };
 
