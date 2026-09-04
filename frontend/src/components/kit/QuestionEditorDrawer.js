@@ -43,7 +43,8 @@ export function QuestionEditorDrawer({
       category,
       difficulty: Number(difficulty),
       requirement_ids: selectedReqIds,
-      status: question.status === 'pinned' ? 'pinned' : 'edited'
+      status: question.status === 'pinned' ? 'pinned' : 'edited',
+      is_edited: true
     };
     onSave(updatedQuestion);
     onClose();

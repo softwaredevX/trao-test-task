@@ -61,19 +61,23 @@ export const kitsService = {
     return this.createKit(userId, generatedData);
   },
 
-  async regenerateSection(kitId, userId, { targetSection, category }) {
+  async regenerateSection(kitId, userId, { targetSection, category, questions: clientQuestions, flashcards: clientFlashcards }) {
     const kit = await this.getKitById(kitId, userId);
 
     if (targetSection === 'category' && category) {
+      // Use client-provided questions if passed from UI state, falling back to DB questions
+      const sourceQuestions = (clientQuestions && Array.isArray(clientQuestions) && clientQuestions.length > 0)
+        ? clientQuestions
+        : kit.questions;
+
       // Preserve edited/pinned items in target category, and ALL items in other categories
-      // Also check is_edited flag as a belt-and-suspenders guard
-      const preservedQuestions = kit.questions.filter(q => {
+      const preservedQuestions = sourceQuestions.filter(q => {
         if (q.category !== category) return true;
         return q.status === 'edited' || q.status === 'pinned' || q.is_edited === true;
       });
 
       // Find requirements for category
-      const targetReqs = kit.role.requirements;
+      const targetReqs = kit.role?.requirements || [];
       const newGenerated = await generateInitialQuestions(targetReqs, kit.company_brief);
 
       // Filter new questions for the target category
@@ -87,11 +91,14 @@ export const kitsService = {
       const coverageResult = checkCoverage(kit.role.requirements, kit.questions);
       kit.coverage = {
         uncovered_requirement_ids: coverageResult.uncovered_requirement_ids,
-        passes: kit.coverage.passes + 1
+        passes: (kit.coverage?.passes || 1) + 1
       };
-      kit.schedule = allocateSchedule(kit.questions, kit.role.requirements, kit.schedule.days_available);
+      kit.schedule = allocateSchedule(kit.questions, kit.role.requirements, kit.schedule?.days_available || 5);
     } else if (targetSection === 'schedule') {
-      kit.schedule = allocateSchedule(kit.questions, kit.role.requirements, kit.schedule.days_available);
+      if (clientQuestions && Array.isArray(clientQuestions) && clientQuestions.length > 0) {
+        kit.questions = clientQuestions;
+      }
+      kit.schedule = allocateSchedule(kit.questions, kit.role.requirements, kit.schedule?.days_available || 5);
     } else if (targetSection === 'company_brief') {
       if (kit.company_brief.status !== 'pinned' && kit.company_brief.status !== 'edited') {
         const freshBrief = await researchCompany(kit.source.company_url);
@@ -103,7 +110,10 @@ export const kitsService = {
         };
       }
     } else if (targetSection === 'flashcards') {
-      const preservedCards = kit.flashcards.filter(f => f.status === 'edited' || f.status === 'pinned');
+      const sourceCards = (clientFlashcards && Array.isArray(clientFlashcards) && clientFlashcards.length > 0)
+        ? clientFlashcards
+        : kit.flashcards;
+      const preservedCards = sourceCards.filter(f => f.status === 'edited' || f.status === 'pinned' || f.is_edited === true);
       const newCards = await generateFlashcards(kit.role.requirements, kit.questions);
       kit.flashcards = [...preservedCards, ...newCards];
     }
