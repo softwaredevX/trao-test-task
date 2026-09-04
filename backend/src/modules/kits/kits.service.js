@@ -66,9 +66,10 @@ export const kitsService = {
 
     if (targetSection === 'category' && category) {
       // Preserve edited/pinned items in target category, and ALL items in other categories
+      // Also check is_edited flag as a belt-and-suspenders guard
       const preservedQuestions = kit.questions.filter(q => {
         if (q.category !== category) return true;
-        return q.status === 'edited' || q.status === 'pinned';
+        return q.status === 'edited' || q.status === 'pinned' || q.is_edited === true;
       });
 
       // Find requirements for category
