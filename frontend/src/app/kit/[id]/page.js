@@ -15,7 +15,7 @@ import { FlashcardsEditorWorkspace } from '../../../components/kit/FlashcardsEdi
 import { StudyScheduleTimeline } from '../../../components/kit/StudyScheduleTimeline';
 import { ResearchSourcesView } from '../../../components/kit/ResearchSourcesView';
 import {
-  ArrowLeft, Play, Save, Check, Building2, HelpCircle, Layers, Calendar, Search, ShieldCheck
+  ArrowLeft, Play, Save, Check, Building2, HelpCircle, Layers, Calendar, Search, ShieldCheck, AlertTriangle
 } from 'lucide-react';
 
 const WORKSPACE_TABS = [
@@ -141,6 +141,10 @@ export default function KitBuilderPage() {
     return tab;
   });
 
+  const isInvalidJd = kit.source?.is_invalid_jd || false;
+  const jdQualityNote = kit.source?.jd_quality_note || '';
+  const companyResearchAvailable = kit.company_brief?.company_research_available !== false;
+
   return (
     <div className="space-y-6 font-sans text-slate-900">
       {/* Workspace Top Bar */}
@@ -187,6 +191,19 @@ export default function KitBuilderPage() {
         </div>
       </div>
 
+      {/* Invalid JD Banner */}
+      {isInvalidJd && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex gap-3 items-start">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-amber-800 font-serif">Invalid or Unreadable Job Description</p>
+            <p className="text-xs text-amber-700 mt-1 font-mono leading-relaxed">
+              {jdQualityNote || 'No recognisable job requirements were found. No questions, flashcards, or schedule have been generated. Please provide a real job description and regenerate.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Navigation Tabs */}
       <Tabs
         tabs={tabsWithCounts}
@@ -210,10 +227,11 @@ export default function KitBuilderPage() {
           <QuestionBankWorkspace
             questions={kit.questions || []}
             requirements={kit.role?.requirements || []}
+            isInvalidJd={isInvalidJd}
+            jdQualityNote={jdQualityNote}
             onUpdateQuestions={async (updatedQ) => {
               const updated = { ...kit, questions: updatedQ };
               setKit(updated);
-              // Auto-persist so edited status is in DB before any regeneration
               try {
                 const res = await api.put(`/kits/${params.id}`, { questions: updatedQ });
                 if (res.data.status === 'ok') setKit(res.data.kit);
@@ -229,6 +247,8 @@ export default function KitBuilderPage() {
           <FlashcardsEditorWorkspace
             flashcards={kit.flashcards || []}
             requirements={kit.role?.requirements || []}
+            isInvalidJd={isInvalidJd}
+            jdQualityNote={jdQualityNote}
             onUpdateFlashcards={(updatedF) => {
               const updated = { ...kit, flashcards: updatedF };
               setKit(updated);
@@ -241,6 +261,7 @@ export default function KitBuilderPage() {
           <StudyScheduleTimeline
             schedule={kit.schedule}
             questions={kit.questions || []}
+            isInvalidJd={isInvalidJd}
           />
         )}
 
