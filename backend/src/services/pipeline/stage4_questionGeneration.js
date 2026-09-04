@@ -48,13 +48,14 @@ export function deduplicateQuestions(questions) {
   return unique;
 }
 
-export async function generateInitialQuestions(requirements, companyBrief = {}, roleContext = {}) {
+export async function generateInitialQuestions(requirements, companyBrief = {}, roleContext = {}, qualityHints = {}) {
+  const { isThinJd = false, companyResearchAvailable = true } = qualityHints;
   const roleTitle = roleContext.role_title || 'Software Engineer';
   const seniority = roleContext.seniority || 'Mid-Level';
   const isFresher = /fresher|junior|intern|entry/i.test(`${roleTitle} ${seniority}`);
 
   if (!requirements || requirements.length === 0) {
-    const fallbackSet = fallbackQuestionGenerator([], companyBrief, roleContext);
+    const fallbackSet = fallbackQuestionGenerator([], companyBrief, roleContext, qualityHints);
     return deduplicateQuestions(fallbackSet);
   }
 
@@ -65,6 +66,14 @@ export async function generateInitialQuestions(requirements, companyBrief = {}, 
   ];
   const selectedAngle = randomSubAngles[Math.floor(Math.random() * randomSubAngles.length)];
 
+  const companyContext = companyResearchAvailable
+    ? `Summary: ${companyBrief.summary || 'Technology company'}\nWhat They Do: ${companyBrief.what_they_do || 'Software and services engineering'}`
+    : `No company research data was available. DO NOT invent company details. Company-fit questions must be generic and candidate-led (e.g. ask the candidate to research the company themselves).`;
+
+  const thinJdNote = isThinJd
+    ? `\nNOTE: This job description is very short. Generate questions strictly based on what is stated. Do not invent or assume unstated requirements, technologies, or role scope.`
+    : '';
+
   const prompt = `You are a Principal Hiring Panel Lead creating a comprehensive, highly varied interview question bank for a candidate interviewing for:
 Role: ${roleTitle} (${seniority})
 
@@ -72,8 +81,7 @@ REQUIREMENTS FROM JOB DESCRIPTION:
 ${JSON.stringify(requirements, null, 2)}
 
 COMPANY RESEARCH (Use ONLY true facts from below; DO NOT hallucinate company details):
-Summary: ${companyBrief.summary || 'Technology company'}
-What They Do: ${companyBrief.what_they_do || 'Software and services engineering'}
+${companyContext}${thinJdNote}
 
 GENERATION FOCUS FOR THIS SESSION:
 ${selectedAngle}
@@ -89,7 +97,9 @@ DYNAMIC TARGET DISTRIBUTIONS (Adapt based on candidate requirements and seniorit
      * For Frontend Developers: Focus on client state management, Web Vitals performance, component breakdown, offline PWA storage, and Error Boundaries.
      * For Backend / Full-Stack / DevOps: Focus on system architecture, DB schema & query optimization, API routing, caching, and scalability appropriate for candidate seniority.
 4. Company Fit (Target ~3-5 questions):
-   - Base questions strictly on the true company research provided above. Ask how candidate experience aligns with their product domain, engineering challenges, and mission. DO NOT invent fictitious products or services.
+   - ${companyResearchAvailable
+       ? 'Base questions strictly on the true company research provided above. Ask how candidate experience aligns with their product domain, engineering challenges, and mission. DO NOT invent fictitious products or services.'
+       : 'No company data is available. Frame questions as candidate-led research tasks: e.g. "Before your interview, you will research this company. What specific aspects of their engineering stack or product would you focus on, and why?" Do NOT fabricate company details.'}
 
 CRITICAL INSTRUCTIONS FOR GENUINE INTERVIEW QUESTIONS:
 - Phrase every question like a natural, top-tier interviewer (like ChatGPT or Google hiring managers).
@@ -134,19 +144,20 @@ CRITICAL INSTRUCTIONS FOR GENUINE INTERVIEW QUESTIONS:
       });
 
       const dedupped = deduplicateQuestions(formatted);
-      return ensureDynamicCategoryBalance(dedupped, requirements, companyBrief, roleContext);
+      return ensureDynamicCategoryBalance(dedupped, requirements, companyBrief, roleContext, qualityHints);
     }
   } catch (err) {
     logger.warn(`[Stage 4] LLM Question generation fallback triggered: ${err.message}`);
   }
 
   logger.info('[Stage 4] Using fallback question generator.');
-  const fallbackSet = fallbackQuestionGenerator(requirements, companyBrief, roleContext);
-  const dedupped = deduplicateQuestions(fallbackSet);
-  return ensureDynamicCategoryBalance(dedupped, requirements, companyBrief, roleContext);
+  const fallbackSet = fallbackQuestionGenerator(requirements, companyBrief, roleContext, qualityHints);
+  const dedupped2 = deduplicateQuestions(fallbackSet);
+  return ensureDynamicCategoryBalance(dedupped2, requirements, companyBrief, roleContext, qualityHints);
 }
 
-export function fallbackQuestionGenerator(requirements = [], companyBrief = {}, roleContext = {}) {
+export function fallbackQuestionGenerator(requirements = [], companyBrief = {}, roleContext = {}, qualityHints = {}) {
+  const { companyResearchAvailable = true } = qualityHints;
   let qCount = 1;
   const questions = [];
   const roleTitle = roleContext.role_title || 'Software Engineer';
@@ -295,33 +306,52 @@ export function fallbackQuestionGenerator(requirements = [], companyBrief = {}, 
     });
   }
 
-  // 4. Company Fit Questions
-  const companyName = companyBrief.summary ? companyBrief.summary.split(' ')[0] : 'this company';
-  const companyWhatTheyDo = companyBrief.what_they_do || 'building innovative products & services';
-
-  const companyFitTemplates = [
-    {
-      prompt: `What specific aspects of ${companyName}'s product focus (${companyWhatTheyDo.slice(0, 100)}) interest you most, and how does your background as a ${roleTitle} align?`,
-      answer: 'Demonstrate research on company product domain, role alignment, and genuine enthusiasm for their challenges.'
-    },
-    {
-      prompt: `How do your personal standards and workflows align with ${companyName}'s focus on quality and fast iteration?`,
-      answer: 'Discuss commitment to high standards, testing/validation, iteration, and cross-team collaboration.'
-    },
-    {
-      prompt: `When joining a team working on ${companyName}'s core platform, how do you approach getting up to speed on existing workflows?`,
-      answer: 'Explain onboarding strategies, studying documentation, reviewing existing work, taking small starter tasks, and pairing with teammates.'
-    },
-    {
-      prompt: `Where do you see your career evolving over the next 2-3 years, and how does contributing to ${companyName} as a ${roleTitle} fit into those goals?`,
-      answer: 'Highlight desire for mastery, taking greater ownership responsibility, and growing alongside team impact.'
-    }
-  ];
+  // 4. Company Fit Questions — honest when no research available
+  const primaryReqId2 = reqList[0]?.id || 'r1';
+  let companyFitTemplates;
+  if (!companyResearchAvailable) {
+    // Generic, candidate-research-led prompts — no fabricated company specifics
+    companyFitTemplates = [
+      {
+        prompt: `Before your interview, you would normally research this company's products, tech stack, and engineering blog. What sources do you use to understand a company's technical culture, and what would you look for specifically as a ${roleTitle}?`,
+        answer: 'Look for engineering blogs, open-source repos, LinkedIn, job posts, Glassdoor, and technology stack signals. Focus on scale, challenges, and team structure.'
+      },
+      {
+        prompt: `If no public information about a company's hiring process were available, how would you still prepare to demonstrate cultural and technical fit during the interview?`,
+        answer: 'Review the job description carefully, prepare STAR stories aligned to stated requirements, and prepare thoughtful questions about team structure and tech challenges.'
+      },
+      {
+        prompt: `What questions would you ask a hiring manager about engineering culture, team ownership models, and on-call expectations for a ${roleTitle} position?`,
+        answer: 'Ask about deploy frequency, incident response, code review culture, mentorship, and how technical debt is managed.'
+      }
+    ];
+  } else {
+    const companyName = companyBrief.summary ? companyBrief.summary.split(' ')[0] : 'this company';
+    const companyWhatTheyDo = companyBrief.what_they_do || 'building innovative products & services';
+    companyFitTemplates = [
+      {
+        prompt: `What specific aspects of ${companyName}'s product focus (${companyWhatTheyDo.slice(0, 100)}) interest you most, and how does your background as a ${roleTitle} align?`,
+        answer: 'Demonstrate research on company product domain, role alignment, and genuine enthusiasm for their challenges.'
+      },
+      {
+        prompt: `How do your personal standards and workflows align with ${companyName}'s focus on quality and fast iteration?`,
+        answer: 'Discuss commitment to high standards, testing/validation, iteration, and cross-team collaboration.'
+      },
+      {
+        prompt: `When joining a team working on ${companyName}'s core platform, how do you approach getting up to speed on existing workflows?`,
+        answer: 'Explain onboarding strategies, studying documentation, reviewing existing work, taking small starter tasks, and pairing with teammates.'
+      },
+      {
+        prompt: `Where do you see your career evolving over the next 2-3 years, and how does contributing to ${companyName} as a ${roleTitle} fit into those goals?`,
+        answer: 'Highlight desire for mastery, taking greater ownership responsibility, and growing alongside team impact.'
+      }
+    ];
+  }
 
   companyFitTemplates.forEach(t => {
     questions.push({
       id: `q${qCount++}`,
-      requirement_ids: [primaryReqId],
+      requirement_ids: [primaryReqId2],
       category: 'company-fit',
       prompt: t.prompt,
       answer_outline: t.answer,
@@ -439,7 +469,8 @@ function getRoleAdaptedSystemDesignPromptAndAnswer(reqText, roleTitle, isFresher
 /**
  * Ensures dynamic category balance targets (Tech 10+, Behavioural 5+, System Design 5+, Company Fit 3+).
  */
-export function ensureDynamicCategoryBalance(questions, requirements = [], companyBrief = {}, roleContext = {}) {
+export function ensureDynamicCategoryBalance(questions, requirements = [], companyBrief = {}, roleContext = {}, qualityHints = {}) {
+  const { companyResearchAvailable = true } = qualityHints;
   let result = [...questions];
   const reqId = requirements[0]?.id || 'r1';
   const reqText = requirements[0]?.text || 'core system components';
@@ -496,15 +527,21 @@ export function ensureDynamicCategoryBalance(questions, requirements = [], compa
     }
   }
 
-  // Fill Company Fit up to minimum 3
+  // Fill Company Fit up to minimum 3 — honest when no company data
   if (fitCount < 3) {
-    const companyName = companyBrief.summary ? companyBrief.summary.split(' ')[0] : 'our company';
+    const companyFitPrompt = companyResearchAvailable
+      ? `What questions do you have for our team regarding engineering culture, mentorship, and product roadmap for ${roleTitle} at ${companyBrief.summary ? companyBrief.summary.split(' ')[0] : 'our company'}?`
+      : `You couldn't find much public information about this company before the interview. How would you still demonstrate genuine interest and cultural fit in the room?`;
+    const companyFitAnswer = companyResearchAvailable
+      ? 'Ask thoughtful questions about sprint cadence, testing culture, onboarding support, and upcoming technical initiatives.'
+      : 'Lean on role alignment, transferable experience, and a prepared list of questions that show curiosity about team structure, product challenges, and engineering culture.';
+
     result.push({
       id: `q_bal_f_${nextId++}`,
       requirement_ids: [reqId],
       category: 'company-fit',
-      prompt: `What questions do you have for our team regarding engineering culture, mentorship, and product roadmap for ${roleTitle} at ${companyName}?`,
-      answer: 'Ask thoughtful questions about sprint cadence, testing culture, onboarding support, and upcoming technical initiatives.',
+      prompt: companyFitPrompt,
+      answer_outline: companyFitAnswer,
       difficulty: 1,
       status: 'generated'
     });

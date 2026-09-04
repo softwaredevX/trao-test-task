@@ -15,22 +15,19 @@ export function ResearchSourcesView({ research, source }) {
     ? [{ url: source.company_url, title: `${source?.company || 'Company'} Official Portal` }]
     : [];
 
-  const rawSteps = research?.process_steps || [];
-  const processSteps = rawSteps.length > 0
-    ? rawSteps
-    : [
-        { round_name: 'Initial Recruiter Screen', description: 'Screening call covering candidate background, role alignment, and compensation expectations.' },
-        { round_name: 'Technical Assessment', description: 'Evaluation of domain knowledge, coding practices, and core requirements.' },
-        { round_name: 'System Architecture / Design', description: 'Architecture design discussion tailored to role specifications.' },
-        { round_name: 'Behavioral & Leadership Screen', description: 'Behavioral interview evaluating past execution, teamwork, and problem solving.' }
-      ];
+  // Only show actually found process steps — never fabricate defaults
+  const processSteps = research?.process_steps || [];
+  const hasProcessSteps = processSteps.length > 0;
 
-  const insights = research?.insights || [
-    'Hiring evaluation focuses on requirement coverage and practical problem-solving.',
-    'Structured behavioral assessment using past experience and concrete examples.'
-  ];
+  // Only show actually found insights — never fabricate defaults
+  const insights = research?.insights || [];
+  const hasInsights = insights.length > 0;
 
   const skippedPages = research?.skipped_pages || [];
+
+  // Determine if company research was genuinely available
+  const companyResearchAvailable = source?.company_research_available !== false
+    && (finalCrawledPages.length > 0 || hasProcessSteps || hasInsights);
 
   return (
     <div className="space-y-6 font-sans text-slate-900">
@@ -95,30 +92,39 @@ export function ResearchSourcesView({ research, source }) {
               <span>Public Hiring Process Insights</span>
             </div>
             <span className="text-[10px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
-              {processSteps.length} Rounds
+              {hasProcessSteps ? `${processSteps.length} Rounds` : 'Not Found'}
             </span>
           </div>
 
-          <div className="space-y-2 font-mono">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-              Discovered Interview Rounds:
-            </span>
-            <div className="space-y-2">
-              {processSteps.map((step, idx) => (
-                <div key={idx} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
-                  <span className="font-bold text-slate-900 block">
-                    Round {idx + 1}: {typeof step === 'string' ? step : (step.round_name || `Round ${idx + 1}`)}
-                  </span>
-                  <p className="text-slate-600 font-sans">{step.description || 'Evaluates core requirements and candidate background.'}</p>
-                </div>
-              ))}
+          {hasProcessSteps ? (
+            <div className="space-y-2 font-mono">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                Discovered Interview Rounds:
+              </span>
+              <div className="space-y-2">
+                {processSteps.map((step, idx) => (
+                  <div key={idx} className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1">
+                    <span className="font-bold text-slate-900 block">
+                      Round {idx + 1}: {typeof step === 'string' ? step : (step.round_name || `Round ${idx + 1}`)}
+                    </span>
+                    <p className="text-slate-600 font-sans">{step.description || 'Evaluates core requirements and candidate background.'}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-slate-50 border border-slate-200">
+              <Search className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" />
+              <p className="text-xs text-slate-500 font-mono leading-relaxed">
+                No public interview process information was found for this company. The kit's interview questions were generated from the job description only.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Synthesis Key Insights */}
-      {insights.length > 0 && (
+      {hasInsights ? (
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3 font-mono">
           <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
@@ -131,6 +137,16 @@ export function ResearchSourcesView({ research, source }) {
               </div>
             ))}
           </div>
+        </div>
+      ) : (
+        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-2 font-mono">
+          <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+            Key Process Insights & Guidelines:
+          </span>
+          <p className="text-xs text-slate-500 font-sans leading-relaxed">
+            No public interview insights or hiring process documentation was found for this company. Review the job description requirements closely — those are the most reliable signal available.
+          </p>
         </div>
       )}
     </div>

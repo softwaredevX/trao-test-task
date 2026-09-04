@@ -30,7 +30,12 @@ export async function runKitPipeline({ jd, companyUrl, days = 5, onProgress = ()
 
   // Step 4: Initial Question Generation (Pass stage1Result for roleTitle & seniority context)
   await onProgress('GENERATING_QUESTIONS', 'Generating questions...');
-  const initialQuestions = await generateInitialQuestions(requirements, companyBriefResult, stage1Result);
+  const initialQuestions = await generateInitialQuestions(
+    requirements,
+    companyBriefResult,
+    stage1Result,
+    { isThinJd: stage1Result.is_thin_jd, companyResearchAvailable: companyBriefResult.company_research_available }
+  );
 
   // Step 5 & 6: Coverage Check & Second Pass Generation
   await onProgress('CHECKING_COVERAGE', 'Checking requirement coverage...');
@@ -46,7 +51,7 @@ export async function runKitPipeline({ jd, companyUrl, days = 5, onProgress = ()
 
   // Step 8: Flashcard Generation
   await onProgress('GENERATING_FLASHCARDS', 'Generating flashcards...');
-  const flashcards = await generateFlashcards(requirements, secondPassResult.questions);
+  const flashcards = await generateFlashcards(requirements, secondPassResult.questions, { isThinJd: stage1Result.is_thin_jd });
 
   // Step 9: Final Kit Schema Assembly & Validation
   await onProgress('VALIDATING_KIT', 'Validating final kit...');
@@ -81,24 +86,27 @@ export async function runKitPipeline({ jd, companyUrl, days = 5, onProgress = ()
 
   const usedPages = companyBriefResult.pages_used?.length
     ? companyBriefResult.pages_used
-    : (companyUrl ? [companyUrl] : []);
+    : [];
 
   const crawledPagesList = usedPages.map(url => ({
     url,
-    title: `${companyName} Research Resource`
+    title: `${companyName} Web Resource`
   }));
 
-  const processStepsList = interviewResearchResult.process_steps?.length
+  const processStepsList = (interviewResearchResult.found && interviewResearchResult.process_steps?.length)
     ? interviewResearchResult.process_steps.map((step, idx) => ({
         round_name: typeof step === 'string' ? step : `Round ${idx + 1}`,
         description: 'Structured assessment evaluating role requirements and core candidate competencies.'
       }))
-    : [
-        { round_name: 'Initial Recruiter Screen', description: 'Screening call covering candidate background, role expectations, and company overview.' },
-        { round_name: 'Technical & Domain Assessment', description: 'Deep-dive evaluating core technical skills, coding standards, and problem-solving methodology.' },
-        { round_name: 'System Architecture / Design', description: 'High-level system design discussion tailored to target role requirements.' },
-        { round_name: 'Behavioral & Leadership Screen', description: 'Behavioral interview panel evaluating communication, ownership, and collaboration.' }
-      ];
+    : [];
+
+  // Derive overall data quality
+  const isThinJd = stage1Result.is_thin_jd || false;
+  const companyResearchAvailable = companyBriefResult.company_research_available !== false;
+  let overallDataQuality = 'full';
+  if (isThinJd && !companyResearchAvailable) overallDataQuality = 'none';
+  else if (isThinJd || !companyResearchAvailable) overallDataQuality = 'thin';
+  else if (companyBriefResult.data_quality === 'partial') overallDataQuality = 'partial';
 
   const rawKit = {
     source: {
@@ -107,13 +115,21 @@ export async function runKitPipeline({ jd, companyUrl, days = 5, onProgress = ()
       role: roleTitle,
       location: 'Remote / On-site',
       jd_chars: (jd || '').length,
+      is_thin_jd: isThinJd,
+      jd_quality_note: stage1Result.jd_quality_note || '',
+      data_quality: overallDataQuality,
       researched_at: new Date().toISOString(),
       pages_used: usedPages
     },
     company_brief: {
-      summary: companyBriefResult.summary || 'Company overview',
-      what_they_do: companyBriefResult.what_they_do || 'Software and services provider',
+      summary: companyBriefResult.summary || (companyResearchAvailable
+        ? 'No public company details found.'
+        : `No public information could be retrieved from the company site. The brief below is based solely on the job description.`),
+      what_they_do: companyBriefResult.what_they_do || (companyResearchAvailable
+        ? 'No product or tech stack details found.'
+        : 'Company site was not accessible or contained no parseable content.'),
       sources: usedPages,
+      company_research_available: companyResearchAvailable,
       status: 'generated'
     },
     role: {
@@ -130,11 +146,10 @@ export async function runKitPipeline({ jd, companyUrl, days = 5, onProgress = ()
       crawled_pages: crawledPagesList,
       skipped_pages: companyBriefResult.pages_skipped || [],
       process_steps: processStepsList,
-      insights: interviewResearchResult.key_insights?.length
+      insights: (interviewResearchResult.found && interviewResearchResult.key_insights?.length)
         ? interviewResearchResult.key_insights
         : [
-            'Hiring evaluation focuses on requirement coverage and practical problem-solving.',
-            'Structured behavioral assessment using past experience and concrete examples.'
+            'No public interview discussion records found for this company. Kit generated using job description synthesis.'
           ]
     }
   };

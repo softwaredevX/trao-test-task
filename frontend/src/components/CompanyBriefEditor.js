@@ -1,13 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { Building2, Globe, RefreshCw, Save, Check } from 'lucide-react';
+import { Building2, Globe, RefreshCw, Save, Check, AlertTriangle } from 'lucide-react';
 
 export default function CompanyBriefEditor({ brief, source, onSave, onRegenerate }) {
   const [summary, setSummary] = useState(brief?.summary || '');
   const [whatTheyDo, setWhatTheyDo] = useState(brief?.what_they_do || '');
   const [isSaved, setIsSaved] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+
+  const companyResearchAvailable = brief?.company_research_available !== false;
 
   const handleSave = () => {
     onSave({
@@ -34,7 +36,15 @@ export default function CompanyBriefEditor({ brief, source, onSave, onRegenerate
             <Building2 className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-slate-100">{source?.company || 'Company'} Brief</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold text-slate-100">{source?.company || 'Company'} Brief</h2>
+              {!companyResearchAvailable && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-900/60 text-amber-300 border border-amber-700/60">
+                  <AlertTriangle className="w-2.5 h-2.5" />
+                  Limited Data
+                </span>
+              )}
+            </div>
             {source?.company_url && (
               <a
                 href={source.company_url}

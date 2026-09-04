@@ -2,9 +2,9 @@
 
 import React from 'react';
 import { Badge } from '../ui/Badge';
-import { ShieldCheck, Building2, Briefcase, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Building2, Briefcase, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
 
-export function OverviewSection({ brief, role, coverage, questions = [] }) {
+export function OverviewSection({ brief, role, coverage, questions = [], source = {} }) {
   const requirements = role?.requirements || [];
   const mustCount = requirements.filter(r => r.priority === 'must').length;
   const coveredMustCount = requirements.filter(r => {
@@ -12,8 +12,38 @@ export function OverviewSection({ brief, role, coverage, questions = [] }) {
     return questions.some(q => q.requirement_ids?.includes(r.id));
   }).length;
 
+  const isThinJd = source?.is_thin_jd || false;
+  const jdQualityNote = source?.jd_quality_note || '';
+  const companyResearchAvailable = brief?.company_research_available !== false;
+  const dataQuality = source?.data_quality || 'full';
+
   return (
     <div className="space-y-6 font-sans text-slate-900">
+      {/* Thin JD Warning */}
+      {isThinJd && (
+        <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex gap-3 items-start shadow-xs">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-amber-800 font-serif">Thin Job Description Detected</p>
+            <p className="text-xs text-amber-700 mt-1 font-mono leading-relaxed">
+              {jdQualityNote || 'The job description provided was very short. Only requirements explicitly stated were extracted — no skills were invented.'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* No Company Data Warning */}
+      {!companyResearchAvailable && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3 items-start shadow-xs">
+          <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-blue-800 font-serif">No Company Research Available</p>
+            <p className="text-xs text-blue-700 mt-1 font-mono leading-relaxed">
+              The company site could not be crawled. Company-fit questions and the brief below are based on the job description only — no company details were fabricated.
+            </p>
+          </div>
+        </div>
+      )}
       {/* Coverage Banner */}
       <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">

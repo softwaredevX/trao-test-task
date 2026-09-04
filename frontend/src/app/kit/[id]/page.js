@@ -202,6 +202,7 @@ export default function KitBuilderPage() {
             role={kit.role}
             coverage={kit.coverage}
             questions={kit.questions || []}
+            source={kit.source}
           />
         )}
 
