@@ -41,6 +41,7 @@ export const kitSchema = z.object({
     location: z.string().default(''),
     jd_chars: z.number().int().nonnegative().default(0),
     is_thin_jd: z.boolean().default(false),
+    is_invalid_jd: z.boolean().default(false),
     jd_quality_note: z.string().optional().default(''),
     data_quality: z.enum(['full', 'partial', 'thin', 'none']).default('full'),
     researched_at: z.string().default(''),

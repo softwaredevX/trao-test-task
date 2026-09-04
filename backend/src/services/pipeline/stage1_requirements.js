@@ -30,13 +30,30 @@ export function cleanRequirementText(text) {
   return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }
 
+/**
+ * Returns true when the text is almost certainly not a real job description.
+ * A real JD will have at least some recognisable word-like tokens.
+ */
+function isGibberish(text) {
+  if (!text || text.trim().length === 0) return true;
+  const tokens = text.trim().split(/\s+/);
+  // A real word: 3+ alphabetic characters
+  const realWordCount = tokens.filter(t => /^[a-zA-Z]{3,}/.test(t)).length;
+  const ratio = realWordCount / Math.max(tokens.length, 1);
+  // If fewer than 40% of tokens look like real words, treat as gibberish
+  return ratio < 0.4;
+}
+
 export async function extractRequirements(jdText) {
   if (!jdText || typeof jdText !== 'string' || jdText.trim().length === 0) {
     return {
-      role_title: 'Software Engineer',
-      seniority: 'Mid-Senior',
+      role_title: 'Unknown Role',
+      seniority: 'Unknown',
       responsibilities: [],
-      requirements: []
+      requirements: [],
+      is_thin_jd: true,
+      is_invalid_jd: true,
+      jd_quality_note: 'No job description was provided.'
     };
   }
 
@@ -72,9 +89,23 @@ CRITICAL INSTRUCTIONS:
   const systemInstruction = 'You are a technical hiring manager extracting structured requirements, role title, and seniority from job descriptions.';
 
   const isThinJd = jdText.trim().length < 200 || jdText.trim().split(/\r?\n/).filter(l => l.trim().length > 3).length <= 3;
-  const jdQualityNote = isThinJd
-    ? `Job description is very short (${jdText.trim().length} characters, ${jdText.trim().split(/\r?\n/).filter(l => l.trim().length > 3).length} meaningful lines). Only the requirements explicitly stated could be extracted — the kit reflects this limited input and does not invent unstated skills.`
+  const gibberish = isGibberish(jdText);
+  const jdQualityNote = (isThinJd || gibberish)
+    ? `Job description is very short or unreadable (${jdText.trim().length} characters, ${jdText.trim().split(/\r?\n/).filter(l => l.trim().length > 3).length} meaningful lines). Only requirements explicitly stated were extracted — no skills were invented.`
     : '';
+
+  // Short-circuit on gibberish before calling LLM
+  if (gibberish) {
+    return {
+      role_title: 'Unknown Role',
+      seniority: 'Unknown',
+      responsibilities: [],
+      requirements: [],
+      is_thin_jd: true,
+      is_invalid_jd: true,
+      jd_quality_note: `The text provided does not appear to be a job description (${jdText.trim().length} characters, no recognisable words). No requirements could be extracted.`
+    };
+  }
 
   try {
     const llmResult = await llmClient.generateJSON({
@@ -94,6 +125,7 @@ CRITICAL INSTRUCTIONS:
         text: cleanRequirementText(req.text)
       }));
       llmResult.is_thin_jd = isThinJd;
+      llmResult.is_invalid_jd = false;
       llmResult.jd_quality_note = jdQualityNote;
       return llmResult;
     }
@@ -104,7 +136,10 @@ CRITICAL INSTRUCTIONS:
   logger.info('[Stage 1] Using heuristic requirement extraction fallback.');
   const fallbackResult = fallbackRequirementExtractor(jdText);
   fallbackResult.is_thin_jd = isThinJd;
-  fallbackResult.jd_quality_note = jdQualityNote;
+  fallbackResult.is_invalid_jd = fallbackResult.requirements.length === 0;
+  fallbackResult.jd_quality_note = fallbackResult.requirements.length === 0
+    ? `The text provided could not be parsed as a job description. No requirements were extracted.`
+    : jdQualityNote;
   return fallbackResult;
 }
 
@@ -204,12 +239,9 @@ function fallbackRequirementExtractor(jdText) {
   });
 
   if (requirements.length === 0) {
-    requirements.push({
-      id: 'r1',
-      text: 'General software development & problem solving skills',
-      kind: 'technical',
-      priority: 'must'
-    });
+    // Do not inject a synthetic fallback — return empty so the pipeline
+    // can produce an honest thin kit rather than fabricated questions.
+    return [];
   }
 
   return {
