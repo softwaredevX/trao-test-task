@@ -207,9 +207,16 @@ export default function KitBuilderPage() {
           <QuestionBankWorkspace
             questions={kit.questions || []}
             requirements={kit.role?.requirements || []}
-            onUpdateQuestions={(updatedQ) => {
+            onUpdateQuestions={async (updatedQ) => {
               const updated = { ...kit, questions: updatedQ };
               setKit(updated);
+              // Auto-persist so edited status is in DB before any regeneration
+              try {
+                const res = await api.put(`/kits/${params.id}`, { questions: updatedQ });
+                if (res.data.status === 'ok') setKit(res.data.kit);
+              } catch (_) {
+                // Silent — UI state is already updated; user can still Save Kit manually
+              }
             }}
             onRegenerateCategory={handleRegenerateCategory}
           />

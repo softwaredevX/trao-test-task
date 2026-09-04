@@ -20,6 +20,8 @@ dist/
 .env.test.local
 .env.production.local
 
+test.csv
+
 # misc
 .DS_Store
 

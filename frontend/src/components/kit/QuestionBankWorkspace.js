@@ -30,10 +30,14 @@ export function QuestionBankWorkspace({
   const handlePinToggle = (questionId) => {
     const updated = questions.map(q => {
       if (q.id === questionId) {
-        return {
-          ...q,
-          status: q.status === 'pinned' ? 'generated' : 'pinned'
-        };
+        if (q.status === 'pinned') {
+          // Restore the appropriate status when unpinning
+          return {
+            ...q,
+            status: q.is_edited ? 'edited' : 'generated'
+          };
+        }
+        return { ...q, status: 'pinned' };
       }
       return q;
     });
@@ -79,13 +83,19 @@ export function QuestionBankWorkspace({
   };
 
   const handleSaveQuestion = (updatedQuestion) => {
-    const existingIdx = questions.findIndex(q => q.id === updatedQuestion.id);
+    // Ensure the edited flag is always set so regeneration skips this question
+    const withEditFlag = {
+      ...updatedQuestion,
+      is_edited: true,
+      status: updatedQuestion.status === 'pinned' ? 'pinned' : 'edited'
+    };
+    const existingIdx = questions.findIndex(q => q.id === withEditFlag.id);
     let updated;
     if (existingIdx !== -1) {
       updated = [...questions];
-      updated[existingIdx] = updatedQuestion;
+      updated[existingIdx] = withEditFlag;
     } else {
-      updated = [...questions, updatedQuestion];
+      updated = [...questions, withEditFlag];
     }
     onUpdateQuestions(updated);
   };
