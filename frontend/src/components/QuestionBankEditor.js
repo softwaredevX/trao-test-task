@@ -23,6 +23,12 @@ export default function QuestionBankEditor({ questions, requirements, onUpdateQu
 
   const categoryQuestions = questions.filter(q => q.category === activeCategory);
 
+  const handleUpdateQuestions = (newQuestions) => {
+    const pinned = newQuestions.filter(q => q.status === 'pinned');
+    const unpinned = newQuestions.filter(q => q.status !== 'pinned');
+    onUpdateQuestions([...pinned, ...unpinned]);
+  };
+
   const startEditing = (q) => {
     setEditingId(q.id);
     setEditPrompt(q.prompt);
@@ -38,12 +44,13 @@ export default function QuestionBankEditor({ questions, requirements, onUpdateQu
           prompt: editPrompt,
           answer_outline: editAnswer,
           difficulty: Number(editDifficulty),
-          status: q.status === 'pinned' ? 'pinned' : 'edited'
+          status: q.status === 'pinned' ? 'pinned' : 'edited',
+          is_edited: true
         };
       }
       return q;
     });
-    onUpdateQuestions(updated);
+    handleUpdateQuestions(updated);
     setEditingId(null);
   };
 
@@ -52,24 +59,36 @@ export default function QuestionBankEditor({ questions, requirements, onUpdateQu
       if (q.id === qId) {
         return {
           ...q,
-          status: q.status === 'pinned' ? 'generated' : 'pinned'
+          status: q.status === 'pinned' ? (q.is_edited ? 'edited' : 'generated') : 'pinned'
         };
       }
       return q;
     });
-    onUpdateQuestions(updated);
+    handleUpdateQuestions(updated);
   };
 
   const moveQuestion = (qId, direction) => {
-    const index = questions.findIndex(q => q.id === qId);
-    if (index === -1) return;
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= questions.length) return;
+    const catIndex = categoryQuestions.findIndex(q => q.id === qId);
+    if (catIndex === -1) return;
+    
+    const targetCatIndex = direction === 'up' ? catIndex - 1 : catIndex + 1;
+    if (targetCatIndex < 0 || targetCatIndex >= categoryQuestions.length) return;
+
+    const currentQ = categoryQuestions[catIndex];
+    const targetQ = categoryQuestions[targetCatIndex];
+
+    if (currentQ.status !== 'pinned' && targetQ.status === 'pinned') return;
+    if (currentQ.status === 'pinned' && targetQ.status !== 'pinned') return;
+
+    const globalIndex1 = questions.findIndex(q => q.id === qId);
+    const globalIndex2 = questions.findIndex(q => q.id === targetQ.id);
 
     const newArr = [...questions];
-    const [moved] = newArr.splice(index, 1);
-    newArr.splice(targetIndex, 0, moved);
-    onUpdateQuestions(newArr);
+    const temp = newArr[globalIndex1];
+    newArr[globalIndex1] = newArr[globalIndex2];
+    newArr[globalIndex2] = temp;
+
+    handleUpdateQuestions(newArr);
   };
 
   const changeCategory = (qId, newCat) => {
@@ -79,12 +98,12 @@ export default function QuestionBankEditor({ questions, requirements, onUpdateQu
       }
       return q;
     });
-    onUpdateQuestions(updated);
+    handleUpdateQuestions(updated);
   };
 
   const deleteQuestion = (qId) => {
     const updated = questions.filter(q => q.id !== qId);
-    onUpdateQuestions(updated);
+    handleUpdateQuestions(updated);
   };
 
   const addQuestion = () => {
@@ -98,7 +117,7 @@ export default function QuestionBankEditor({ questions, requirements, onUpdateQu
       difficulty: 2,
       status: 'edited'
     };
-    onUpdateQuestions([...questions, newQ]);
+    handleUpdateQuestions([...questions, newQ]);
     startEditing(newQ);
   };
 
@@ -199,19 +218,27 @@ export default function QuestionBankEditor({ questions, requirements, onUpdateQu
                       {q.id}
                     </span>
 
-                    {/* Status Badge */}
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                        q.status === 'pinned'
-                          ? 'bg-amber-950 text-amber-300 border border-amber-800'
-                          : q.status === 'edited'
-                          ? 'bg-indigo-950 text-indigo-300 border border-indigo-800'
-                          : 'bg-slate-800 text-slate-400'
-                      }`}
-                    >
-                      {q.status === 'pinned' && <Pin className="w-2.5 h-2.5" />}
-                      {q.status}
-                    </span>
+                    {/* Status Badges */}
+                    <div className="flex items-center gap-1.5">
+                      {q.status === 'pinned' && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1 bg-amber-950 text-amber-300 border border-amber-800">
+                          <Pin className="w-2.5 h-2.5" />
+                          pinned
+                        </span>
+                      )}
+                      
+                      {(q.status === 'edited' || q.is_edited) && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1 bg-indigo-950 text-indigo-300 border border-indigo-800">
+                          edited
+                        </span>
+                      )}
+
+                      {q.status === 'generated' && !q.is_edited && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full flex items-center gap-1 bg-slate-800 text-slate-400">
+                          generated
+                        </span>
+                      )}
+                    </div>
 
                     {/* Difficulty Badge */}
                     <span className="text-[10px] font-semibold text-slate-400 bg-slate-900 px-2 py-0.5 rounded">
@@ -222,16 +249,18 @@ export default function QuestionBankEditor({ questions, requirements, onUpdateQu
                   <div className="flex items-center gap-1">
                     {/* Move up / down */}
                     <button
-                      onClick={() => moveQuestion(q.id, 'up')}
-                      className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
-                      title="Move Up"
+                      onClick={() => q.status !== 'pinned' && moveQuestion(q.id, 'up')}
+                      disabled={q.status === 'pinned'}
+                      className={`p-1 rounded ${q.status === 'pinned' ? 'text-slate-700 cursor-not-allowed' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+                      title={q.status === 'pinned' ? "Cannot move pinned question" : "Move Up"}
                     >
                       <ArrowUp className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => moveQuestion(q.id, 'down')}
-                      className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
-                      title="Move Down"
+                      onClick={() => q.status !== 'pinned' && moveQuestion(q.id, 'down')}
+                      disabled={q.status === 'pinned'}
+                      className={`p-1 rounded ${q.status === 'pinned' ? 'text-slate-700 cursor-not-allowed' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}
+                      title={q.status === 'pinned' ? "Cannot move pinned question" : "Move Down"}
                     >
                       <ArrowDown className="w-3.5 h-3.5" />
                     </button>

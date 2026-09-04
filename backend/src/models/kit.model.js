@@ -14,7 +14,8 @@ const questionSchema = new mongoose.Schema({
   prompt: { type: String, required: true },
   answer_outline: { type: String, default: '' },
   difficulty: { type: Number, min: 1, max: 3, default: 2 },
-  status: { type: String, enum: ['generated', 'edited', 'pinned'], default: 'generated' }
+  status: { type: String, enum: ['generated', 'edited', 'pinned'], default: 'generated' },
+  is_edited: { type: Boolean, default: false }
 }, { _id: false });
 
 const flashcardSchema = new mongoose.Schema({

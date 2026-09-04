@@ -14,7 +14,8 @@ export const questionSchema = z.object({
   prompt: z.string(),
   answer_outline: z.string().default(''),
   difficulty: z.number().int().min(1).max(3),
-  status: z.enum(['generated', 'edited', 'pinned']).default('generated')
+  status: z.enum(['generated', 'edited', 'pinned']).default('generated'),
+  is_edited: z.boolean().optional().default(false)
 });
 
 export const flashcardSchema = z.object({
