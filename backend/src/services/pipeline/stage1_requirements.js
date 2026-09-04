@@ -67,9 +67,14 @@ CRITICAL INSTRUCTIONS:
 4. Clean requirement text to capture the core technical skill, behavioral competency, or domain concept without prefixing experience durations (e.g. use "React & Node.js architecture" instead of "3+ years of experience in React").
 5. "kind" must strictly be one of: "technical", "behavioural", "domain".
 6. "priority" must strictly be one of: "must", "nice".
-7. Do NOT fabricate requirements not mentioned in the JD.`;
+7. Do NOT fabricate requirements or responsibilities not mentioned in the JD. If the JD is concise or thin (e.g. only 2 lines), extract strictly what is present without inventing unstated technologies, experience durations, or tools.`;
 
   const systemInstruction = 'You are a technical hiring manager extracting structured requirements, role title, and seniority from job descriptions.';
+
+  const isThinJd = jdText.trim().length < 200 || jdText.trim().split(/\r?\n/).filter(l => l.trim().length > 3).length <= 3;
+  const jdQualityNote = isThinJd
+    ? `Job description is very short (${jdText.trim().length} characters, ${jdText.trim().split(/\r?\n/).filter(l => l.trim().length > 3).length} meaningful lines). Only the requirements explicitly stated could be extracted — the kit reflects this limited input and does not invent unstated skills.`
+    : '';
 
   try {
     const llmResult = await llmClient.generateJSON({
@@ -88,6 +93,8 @@ CRITICAL INSTRUCTIONS:
         ...req,
         text: cleanRequirementText(req.text)
       }));
+      llmResult.is_thin_jd = isThinJd;
+      llmResult.jd_quality_note = jdQualityNote;
       return llmResult;
     }
   } catch (err) {
@@ -95,7 +102,10 @@ CRITICAL INSTRUCTIONS:
   }
 
   logger.info('[Stage 1] Using heuristic requirement extraction fallback.');
-  return fallbackRequirementExtractor(jdText);
+  const fallbackResult = fallbackRequirementExtractor(jdText);
+  fallbackResult.is_thin_jd = isThinJd;
+  fallbackResult.jd_quality_note = jdQualityNote;
+  return fallbackResult;
 }
 
 function fallbackRequirementExtractor(jdText) {

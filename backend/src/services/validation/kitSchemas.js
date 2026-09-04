@@ -40,6 +40,9 @@ export const kitSchema = z.object({
     role: z.string().default(''),
     location: z.string().default(''),
     jd_chars: z.number().int().nonnegative().default(0),
+    is_thin_jd: z.boolean().default(false),
+    jd_quality_note: z.string().optional().default(''),
+    data_quality: z.enum(['full', 'partial', 'thin', 'none']).default('full'),
     researched_at: z.string().default(''),
     pages_used: z.array(z.string()).default([])
   }),
@@ -47,6 +50,7 @@ export const kitSchema = z.object({
     summary: z.string().default(''),
     what_they_do: z.string().default(''),
     sources: z.array(z.string()).default([]),
+    company_research_available: z.boolean().default(true),
     status: z.enum(['generated', 'edited', 'pinned']).default('generated')
   }),
   role: z.object({
